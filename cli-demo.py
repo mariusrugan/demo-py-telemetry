@@ -13,6 +13,7 @@ import time
 from turtle import tracer
 import socket
 
+from grpc import StatusCode
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.sdk._logs.export import ConsoleLogRecordExporter
@@ -41,6 +42,7 @@ from opentelemetry.metrics import (
 )
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.trace import Status, StatusCode
 
 OTEL_COLLECTOR_HOST = os.getenv("OTEL_COLLECTOR_HOST", "127.0.0.1")
 OTEL_COLLECTOR_PORT = int(os.getenv("OTEL_COLLECTOR_PORT", "4317"))
@@ -88,7 +90,7 @@ logger_provider = LoggerProvider(
 )
 set_logger_provider(logger_provider)
 
-otlp_exporter = OTLPLogExporter(endpoint="http://192.168.1.100:4317", insecure=True)
+otlp_exporter = OTLPLogExporter(endpoint=f"{OTEL_COLLECTOR_HOST}:{OTEL_COLLECTOR_PORT}", insecure=OTEL_INSECURE)
 logger_provider.add_log_record_processor(BatchLogRecordProcessor(otlp_exporter))
 
 # console_exporter = ConsoleLogRecordExporter()
@@ -126,8 +128,7 @@ LoggingInstrumentor().instrument(set_logging_format=True)
 tracer = trace.get_tracer(__name__)
 
 meter = get_meter_provider().get_meter("getting-started", "yoda.practice")
-counter = meter.create_counter("counter")
-counter.add(1)
+counter = meter.create_counter("counter", unit="1", description="Counts things")
 
 # Practice The Telemetry
 def practice(how_long):
@@ -152,6 +153,7 @@ def practice(how_long):
 
         try:
             how_long_int = int(how_long)
+            counter.add(how_long_int, {"practice": "the-telemetry"})
             
             practice_logger.info("starting to practice The Telemetry for %i second(s)", how_long_int)
             
@@ -165,12 +167,15 @@ def practice(how_long):
             practice_logger.info("Done practicing")
 
             span.set_attribute("practice.end_time", end_time)
+            span.set_attribute("counter", how_long_int)
 
         except ValueError as ve:
             practice_logger.error("I need an integer value for the time to practice: %s", ve)
             return False
         except Exception as e:
             practice_logger.error("An unexpected error occurred: %s", e)
+            span.set_status(Status(StatusCode.ERROR))
+            span.record_exception(e)
             return False
         return True
 

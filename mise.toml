@@ -1,7 +1,8 @@
 [env]
-_.python.venv = { path = "{{config_root}}/.venv", create = true }
+_.file = '.env'
 
-OTEL_EXPORTER_OTLP_ENDPOINT="http://192.168.1.100:4317"
+_.python.venv = { path = "{{config_root}}/.venv", create = true }
 
 [tools]
 "python" = "3.14.0"
+
